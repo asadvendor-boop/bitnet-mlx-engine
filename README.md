@@ -40,17 +40,55 @@ Our trained draft model (2L/512H, 620 tok/s standalone) achieves 66% acceptance 
 
 ## 📁 Project Structure
 
+### ⚡ Core Engine (C++)
 ```
-├── cpp_inference/
-│   ├── bitnet_v3.cpp              # Baseline engine (89 tok/s)
-│   ├── bitnet_v5_speculative.cpp  # Speculative decode engine
-│   ├── coreml_2bit.py             # CoreML/ANE benchmark
-│   └── coreml_convert.py          # CoreML conversion (float16)
-├── scripts/
-│   ├── generate_training_data.py  # Collect teacher logits
-│   └── train_draft.py             # Knowledge distillation trainer
-├── Makefile                       # Auto-detects MLX, builds both engines
-└── README.md
+cpp_inference/
+├── bitnet_v3.cpp              # ★ Final engine: 89 tok/s (BitLinear Metal + async_eval)
+└── bitnet_v5_speculative.cpp  # ★ Speculative decode with trained draft model
+```
+
+### 🔬 Benchmarks & Analysis
+```
+cpp_inference/
+├── coreml_2bit.py             # CoreML ANE benchmark with 2-bit palettization
+├── coreml_convert.py          # CoreML float16 baseline benchmark
+├── bitnet_generate.cpp        # C++ v1: 28 tok/s (QuantizedLinear, no custom kernel)
+├── bitnet_v2.cpp              # C++ v2: 80 tok/s (first BitLinear Metal kernel)
+└── bitnet_v4_speculative.cpp  # C++ v4: same-model speculative (failed experiment)
+```
+
+### 🐍 Python Experiments (the journey from 13.8 tok/s)
+```
+bitnet/                        # Custom Python module with hand-written ternary kernels
+├── __init__.py
+├── kernels.py                 # Metal kernel source for ternary matmul
+├── layers.py                  # BitLinear layer implementation  
+├── model.py                   # Full BitNet model definition
+├── loader.py                  # Weight loading from safetensors
+└── generate.py                # Token generation loop
+run_bitnet_2b.py               # First working inference (13.8 tok/s)
+run_approach1_native2bit.py    # Approach 1: native 2-bit quantization
+run_approach2_compiled.py      # Approach 2: mx.compile() optimization
+run_approach3_tiled.py         # Approach 3: tiled matmul kernel
+run_hybrid_fastest.py          # Hybrid approach combining best ideas
+run_ultimate.py                # Final Python attempt before moving to C++
+benchmark.py                   # Benchmarking harness
+tune_kernel.py                 # Metal kernel parameter tuning
+export_bitnet.py               # Weight export/conversion utility
+tests/test_kernels.py          # Kernel correctness tests
+```
+
+### 🎓 Draft Model Training (for speculative decoding)
+```
+scripts/
+├── generate_training_data.py  # Run teacher model, collect top-K logits
+└── train_draft.py             # Knowledge distillation (KL divergence)
+```
+
+### 📦 Build
+```
+Makefile                       # Auto-detects MLX paths, builds both engines
+.gitignore                     # Excludes models/ (5.6GB), compiled binaries
 ```
 
 ## 🚀 Quick Start
