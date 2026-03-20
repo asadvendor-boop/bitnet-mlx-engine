@@ -169,6 +169,46 @@ We did what Apple won't tell you — benchmarked the ANE head-to-head against th
 
 ---
 
+## 🧪 M5-Specific Findings (Apple Silicon Gen 17)
+
+Tested on **Apple M5** (`applegpu_g17g`, Metal 4, 10 GPU cores, 34 GB unified memory).
+
+### Wired Memory Limit: No Effect on Small Models
+
+Python's `mlx-lm` automatically pins GPU buffers using `wired_limit()` (discovered by [robertmsale](https://github.com/ml-explore/mlx-swift/issues/347)). We tested this explicitly:
+
+| Setting | tok/s |
+|---|---|
+| Without `set_wired_limit` | 90.2 |
+| With `set_wired_limit(26.8 GB)` | 90.2 |
+
+**Why no difference?** BitNet-2B is only ~1 GB of weights — it fits entirely in the GPU working set without pinning. The wired limit matters for **large models (70B+)** where the OS might evict GPU buffers mid-inference.
+
+### M5 Neural Units vs Custom Kernels
+
+M5 has new Neural Units (NU) inside each GPU core. We benchmarked whether they accelerate standard matmul beyond our custom BitLinear kernel:
+
+| Kernel | ms/op | Data read | ops/s |
+|---|---|---|---|
+| Standard matmul (bf16, uses M5 NU) | 0.538 | 35.4 MB | 1,857 |
+| **Custom BitLinear (no NU access)** | **0.419** | **4.4 MB** | **2,385** |
+
+**Our custom kernel is 1.28× FASTER** despite not using M5's Neural Units. Why? Because reading **8× less data** (packed ternary uint8 vs bf16 float) outweighs the NU compute advantage. LLM token generation is **memory-bandwidth bound**, not compute-bound.
+
+However: we read 8× less data but are only 1.28× faster = **our kernel is ~6× less compute-efficient than the NU path**. If Apple adds native ternary support to the NU, BitNet could theoretically hit **500+ tok/s**.
+
+### GPU Profiling Tips
+
+For deep profiling, use MLX's built-in GPU capture:
+```cpp
+// C++
+mx::metal::start_capture("trace.gputrace");
+// ... inference ...
+mx::metal::stop_capture();
+// Open trace.gputrace in Xcode
+```
+Requires `MTL_CAPTURE_ENABLED=1` environment variable and Xcode installed.
+
 ## 📁 Complete File Reference
 
 ### ⚡ Core Engines
