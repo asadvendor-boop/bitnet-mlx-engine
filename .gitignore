@@ -1,0 +1,25 @@
+# Models and weights (too large for git)
+models/
+data/
+
+# Compiled binaries
+cpp_inference/bitnet_generate
+cpp_inference/bitnet_v2
+cpp_inference/bitnet_v3
+cpp_inference/bitnet_v4
+cpp_inference/bitnet_v5
+
+# MLX compiled graphs
+*.mlxfn
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
